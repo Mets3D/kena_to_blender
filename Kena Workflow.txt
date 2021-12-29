@@ -1,0 +1,30 @@
+Gildor thread: https://www.gildor.org/smf/index.php/topic,7922.0.html
+
+Workflow:
+    MORPHS
+    - Export characters that have morphs using umodel_kena_morphs_export.exe. There is a very small number of them, so doing this one by one is feasible.
+    - I wrote import_morphs.py to import them overnight. The .psk importer seems extremely slow, and it took a total of 13 hours.
+    CORRECT SKELETONS
+    - At least Kena, and potentially other characters, export with wrong skeleton using the morphs build.
+    - So the correct skeleton should be exported with umodel_kena.exe.
+    ANIMATIONS
+    - Extract animations with FModel4
+        Workflow: https://www.gildor.org/smf/index.php/topic,7922.msg41369.html#msg41369 : Use FModel4 to output to .psa:
+            Browse game files
+            Doubleclick the 16GB .pak file
+            Press F6
+            Double click stuff
+            Outputs .psa files to path specified in settings.
+    - Import with .psk/.psa io addon.
+    - Armature should be selected, and it must be an armature that came out of umodel set to .psk, IT WON'T WORK WITH SKELETON FROM GLTF EXPORT! (even with "Guess Bind Pose" disabled on import)
+
+NOTES
+    Assets exclusive to cutscenes NEVER SHIPPED WITH THE GAME, eg. the awesome creature from the game's final cutscene.
+
+- Export everything with umodel_kena.exe (for correct skeleton positions)
+    idk if static meshes will work, if not, those will need another pass with regular umodel_64.exe.
+
+        Not sure how this could be automated.
+
+- Import to Blender
+- Some script to auto set-up materials based on the umodel-exported Material data.
