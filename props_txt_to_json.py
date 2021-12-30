@@ -11,9 +11,11 @@ def props_txt_to_dict(filepath: str) -> Dict:
 	data = open(filepath).read()
 	data = cleanup_data(data)
 	parsed_dict = parse(data)
+
 	dicts_to_lists(parsed_dict)
 	if 'CachedExpressionData' in parsed_dict:
 		del parsed_dict['CachedExpressionData']
+	
 	return parsed_dict
 
 def props_txt_to_json(filepath: str) -> str:
@@ -47,7 +49,12 @@ def process_line(data: Dict, line: str):
 	key, value = line.split("=", 1)
 
 	if value.startswith("{") and value.endswith("}"):
+		if len(value) == 2:
+			data[key] = []
+			return
 		value = value[1:-1]
+		if "=" not in value:
+			value = eval(f"[{value}]")
 
 	if "," in value:
 		sub_data = {}
@@ -60,7 +67,7 @@ def process_line(data: Dict, line: str):
 				pass
 			sub_data[k] = v
 		value = sub_data
-	
+
 	if "=" in value:
 		k, v = value.split("=")
 		value = {k:v} 
@@ -125,6 +132,6 @@ def dicts_to_lists(data: Dict) -> Dict:
 			if value:
 				new_value = list(value.values())
 			else:
-				value = None
+				new_value = None
 			data[new_key] = new_value
 			del data[key]
