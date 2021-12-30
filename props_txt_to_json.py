@@ -4,9 +4,7 @@ from typing import Tuple, Dict
 import json, re
 RE_LIST = re.compile(r".*\[[0-9]*\]")
 
-EXTRACTED_FILES = "D:/3D/Kena/Extracted/Extracted_Rigs/"
-
-def props_txt_to_dict(filepath: str):
+def props_txt_to_dict(filepath: str) -> Dict:
 	"""Convert .props.txt files output by uModel to a Python dictionary."""
 
 	# Read file into lines
@@ -14,9 +12,11 @@ def props_txt_to_dict(filepath: str):
 	data = cleanup_data(data)
 	parsed_dict = parse(data)
 	dicts_to_lists(parsed_dict)
+	if 'CachedExpressionData' in parsed_dict:
+		del parsed_dict['CachedExpressionData']
 	return parsed_dict
 
-def props_txt_to_json(filepath: str):
+def props_txt_to_json(filepath: str) -> str:
 	parsed_dict = props_txt_to_dict(filepath)
 	return json.dumps(parsed_dict, indent=4)
 
@@ -46,11 +46,18 @@ def process_line(data: Dict, line: str):
 		return
 	key, value = line.split("=", 1)
 
+	if value.startswith("{") and value.endswith("}"):
+		value = value[1:-1]
+
 	if "," in value:
 		sub_data = {}
 		parts = value.split(",")
 		for part in parts:
 			k, v = part.split("=")
+			try:
+				v = eval(v)
+			except Exception:
+				pass
 			sub_data[k] = v
 		value = sub_data
 	
@@ -114,9 +121,10 @@ def dicts_to_lists(data: Dict) -> Dict:
 	for key, value in list(data.items()):
 		match = re.match(RE_LIST, key)
 		if match:
-			new_key = key[:-3]
-			new_value = list(value.values())
+			new_key = key.split("[")[0]
+			if value:
+				new_value = list(value.values())
+			else:
+				value = None
 			data[new_key] = new_value
 			del data[key]
-
-props_txt_to_json(EXTRACTED_FILES + "Game/Mochi/Characters/Kena/Materials/Standard/MI_KenaHair.props.txt")
