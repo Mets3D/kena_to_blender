@@ -10,17 +10,23 @@ EQUIVALENT_PARAMS = {
 	,'Albedo' : 'Diffuse'
 	,'Normals' : 'Normal'
 	,'Emissive' : 'Emission'
+	,'GlowMap' : 'Emission'
 	,'AO_R' : 'AO_R_M'
 	,'MREA' : 'AO_R_M'
+	,'Unique_Hair_Value' : 'Depth'
 }
 
 TEX_BLACKLIST = [
 	'kena_cloth_sprint_EMISSIVE'
 	,'kena_props_sprint_EMISSIVE'
+	,'kena_cloth_EMISSIVE'
+	,'Noise_cloudsmed'
 ]
 
 SHADER_MAPPING = {
 	'M_EyeRefractive' : 'Kena_Eye'
+	,'M_HairSheet' : 'Kena_Hair'
+	,'M_Skin' : 'Kena_Skin'
 }
 
 def build_material_map(path_to_files: str) -> Dict[str, str]:
@@ -54,10 +60,7 @@ def set_up_materials(obj: Object, mat_map: Dict[str, str]):
 		if not mat_file:
 			continue
 
-		print("SETTING UP", mat.name)
-
 		mat_info = props_txt_to_dict(mat_file)
-		# print("AND THEN THIS IS WHAT'S RETURNED", json.dumps(mat_info, indent=4))
 
 		set_up_material(obj, mat, mat_info)
 
@@ -78,6 +81,7 @@ def set_up_material(obj: Object, mat: Material, mat_info: Dict):
 		master_mat = mat_info['Parent'].split("'")[1].split(".")[1]
 		if master_mat in SHADER_MAPPING:
 			shader = SHADER_MAPPING[master_mat]
+		node_ng.name = node_ng.label = master_mat
 	node_ng.node_tree = bpy.data.node_groups[shader]
 
 	node_ng.location = (500, 200)
@@ -124,11 +128,18 @@ def set_up_material(obj: Object, mat: Material, mat_info: Dict):
 
 		links.new(par_node.outputs[0], input_pin)
 
-		if par_node.type == 'TEX_IMAGE' and input_pin.name not in ['Diffuse']:
+		if par_node.type == 'TEX_IMAGE' and input_pin.name not in ['Diffuse', 'Alpha', 'IrisColor']:
 			par_node.image.colorspace_settings.name = 'Non-Color'
 		
 		if input_pin.name == 'Diffuse':
 			nodes.active = par_node
+	
+	if shader == 'Kena_Hair':
+		mat.blend_method = 'HASHED'
+	else:
+		mat.blend_method = 'CLIP'
+	if 'EyeShadow' in mat.name:
+		mat.blend_method = 'BLEND'
 
 def create_node_float(mat, par_name, par_value, node_ng):
 	nodes = mat.node_tree.nodes
@@ -141,6 +152,8 @@ def create_node_float(mat, par_name, par_value, node_ng):
 
 def create_node_vector(mat, par_name, par_value, node_ng):
 	nodes = mat.node_tree.nodes
+	if not par_name:
+		par_name = "Unknown"
 
 	def assign_uv_scale_values(mat, target_node):
 		if not target_node:
