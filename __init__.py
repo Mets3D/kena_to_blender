@@ -31,6 +31,9 @@ import bpy, importlib
 from bpy.props import StringProperty
 from . import import_umodel_material
 from . import props_txt_to_json
+from . import utils
+from . import batch_import_psk
+from . import cleanup_mesh
 
 class uModelIOAddonPrefs(bpy.types.AddonPreferences):
 	# this must match the addon name, use '__package__'
@@ -52,6 +55,9 @@ class uModelIOAddonPrefs(bpy.types.AddonPreferences):
 modules = [
 	import_umodel_material
     ,props_txt_to_json
+    ,utils
+    ,cleanup_mesh
+    ,batch_import_psk
 ]
 
 from bpy.utils import register_class, unregister_class

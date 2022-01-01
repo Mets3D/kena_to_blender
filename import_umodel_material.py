@@ -2,8 +2,11 @@ from typing import List, Dict, Tuple
 from bpy.types import Object, Material, Node, Image
 import bpy, os, sys, shutil
 from .props_txt_to_json import props_txt_to_dict
+from .utils import get_extract_path
 
-import json
+RES_FILE = "kena_materials.blend"
+RES_DIR = os.path.dirname(os.path.realpath(__file__))
+RES_PATH = os.path.join(RES_DIR, RES_FILE)
 
 EQUIVALENT_PARAMS = {
 	'BaseColor' : 'Diffuse'
@@ -13,6 +16,7 @@ EQUIVALENT_PARAMS = {
 	,'GlowMap' : 'Emission'
 	,'AO_R' : 'AO_R_M'
 	,'MREA' : 'AO_R_M'
+	,'Comp_M_R_Ao' : 'M_R_AO'
 	,'Unique_Hair_Value' : 'Depth'
 }
 
@@ -28,6 +32,20 @@ SHADER_MAPPING = {
 	,'M_HairSheet' : 'Kena_Hair'
 	,'M_Skin' : 'Kena_Skin'
 }
+
+def ensure_node_group(ng_name):
+	"""Check if a nodegroup exists, and if not, append it from the addon's resource file."""
+
+	if ng_name not in bpy.data.node_groups:
+		with bpy.data.libraries.load(RES_PATH) as (data_from, data_to):
+			for ng in data_from.node_groups:
+				if ng == ng_name:
+					data_to.node_groups.append(ng)
+
+	ng = bpy.data.node_groups[ng_name]
+	ng.use_fake_user = False
+
+	return ng
 
 def build_material_map(path_to_files: str) -> Dict[str, str]:
 	"""
@@ -82,7 +100,7 @@ def set_up_material(obj: Object, mat: Material, mat_info: Dict):
 		if master_mat in SHADER_MAPPING:
 			shader = SHADER_MAPPING[master_mat]
 		node_ng.name = node_ng.label = master_mat
-	node_ng.node_tree = bpy.data.node_groups[shader]
+	node_ng.node_tree = ensure_node_group(shader)
 
 	node_ng.location = (500, 200)
 	node_ng.width = 350
@@ -354,11 +372,16 @@ def parse_mat_params(mat_info: Dict) -> Tuple[Dict, Dict, Dict]:
 
 	return tex_params, vector_params, scalar_params
 
-def get_extract_path(context) -> str:
-	addon_prefs = context.preferences.addons[__package__].preferences
-	extract_path = addon_prefs.extract_path
-	assert extract_path != 'D:\\Path_to_your_extract_folder\\', "Set your extract folder path in the addon prefs!"
-	return extract_path
+def load_materials_on_selected_objects(context):
+	extract_path = get_extract_path(context)
+	
+	mat_map = build_material_map(extract_path)
+	for key, value in mat_map.items():
+		full_path = os.path.join(extract_path, value)
+		mat_map[key] = full_path
+
+	for o in context.selected_objects:
+		set_up_materials(o, mat_map)
 
 class OBJECT_OT_SetUpMaterials(bpy.types.Operator):
 	"""Load UE4 materials on an object"""
@@ -367,15 +390,7 @@ class OBJECT_OT_SetUpMaterials(bpy.types.Operator):
 	bl_options = {'REGISTER', 'UNDO'}
 
 	def execute(self, context):
-		extract_path = get_extract_path(context)
-		
-		mat_map = build_material_map(extract_path)
-		for key, value in mat_map.items():
-			full_path = os.path.join(extract_path, value)
-			mat_map[key] = full_path
-
-		for o in context.selected_objects:
-			set_up_materials(o, mat_map)
+		load_materials_on_selected_objects(context)
 
 		return {'FINISHED'}
 	

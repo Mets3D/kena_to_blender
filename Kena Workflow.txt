@@ -12,31 +12,37 @@ Workflow:
     - At least Kena, and potentially other characters, export with wrong skeleton using the morphs build.
     - So the correct skeleton should be exported with umodel_kena.exe.
     ANIMATIONS
-    Workflow 1: Faster but doesn't seem to work for Kena, and who knows who else:
-        - Extract animations with FModel4
-            Workflow: https://www.gildor.org/smf/index.php/topic,7922.msg41369.html#msg41369 : Use FModel4 to output to .psa:
-                Browse game files
-                Doubleclick the 16GB .pak file
-                Press F6
-                Double click stuff
-                Outputs .psa files to path specified in settings.
-        - Import with .psk/.psa io addon.
-        - Armature should be selected, and it must be an armature that came out of umodel set to .psk, IT WON'T WORK WITH SKELETON FROM GLTF EXPORT! (even with "Guess Bind Pose" disabled on import)
-    Workflow 2: Much more painful, but seems necessary for Kena
-        - Get ACLViewer custom build for Kena from https://forum.xentax.com/viewtopic.php?f=16&t=24009&p=178401&hilit=Kena#p178401
-        - Extract animations and skeleton to .uasset files with uModel
-        - Extract character to GLTF with uModel
-        - Convert character to NUX using Noesis, by installing the script from ACLViewer as a Noesis addon.
-        - Load the character NUX and skeleton .uasset in ACLViewer
-        - One by one, load .uasset animations in ACLViewer and export them as NUX.
-        - Batch convert the NUX animations to GLTF with Noesis
-        - TODO: Write batch importer for the resulting GLTF's:
-            For each file:
-            - Import file
-            - Delete all selected files
-            - Rename an action that has a specific name ("Armature_Default.001" or so) to the filename without "out" at the end.
-            - Give it a fake user
-            - recursive purge
+        Workflow 1: Faster but doesn't seem to work for Kena, and who knows who else:
+            - Extract animations with FModel4
+                Workflow: https://www.gildor.org/smf/index.php/topic,7922.msg41369.html#msg41369 : Use FModel4 to output to .psa:
+                    Browse game files
+                    Doubleclick the 16GB .pak file
+                    Press F6
+                    Double click stuff
+                    Outputs .psa files to path specified in settings.
+            - Import with .psk/.psa io addon.
+            - Armature should be selected, and it must be an armature that came out of umodel set to .psk, IT WON'T WORK WITH SKELETON FROM GLTF EXPORT! (even with "Guess Bind Pose" disabled on import)
+        Workflow 2: Much more painful, but seems necessary for Kena
+            - Get ACLViewer custom build for Kena from https://forum.xentax.com/viewtopic.php?f=16&t=24009&p=178401&hilit=Kena#p178401
+            - Extract animations and skeleton to .uasset files with uModel
+            - Extract character to GLTF with uModel
+            - Convert character to NUX using Noesis, by installing the script from ACLViewer as a Noesis addon.
+            - Load the character NUX and skeleton .uasset in ACLViewer
+            - One by one, load .uasset animations in ACLViewer and export them as NUX.
+            - Batch convert the NUX animations to GLTF with Noesis
+            - TODO: Write batch importer for the resulting GLTF's:
+                For each file:
+                - Import file
+                - Delete all selected files
+                - Rename an action that has a specific name ("Armature_Default.001" or so) to the filename without "out" at the end.
+                - Give it a fake user
+                - recursive purge
+
+    STATIC MESHES
+    - Extract everything to .uasset files first.
+    - A quick python script to scan through the extracted .uassets and delete every folder that has "Animation" in the name. This is because umodel_kena.exe crashes when trying to export animations.
+    - Now extract everything from those .uasset files! (With "Don't overwrite existing" enabled)
+
 
 NOTES
     Assets exclusive to cutscenes NEVER SHIPPED WITH THE GAME, eg. the awesome creature from the game's final cutscene.
