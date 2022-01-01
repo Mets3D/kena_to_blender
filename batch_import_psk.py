@@ -1,12 +1,16 @@
 from typing import List
 from bpy.types import Object
+
 import bpy, os, sys
 from datetime import datetime
+from bpy_extras.io_utils import ImportHelper
+from bpy.props import StringProperty, BoolProperty, CollectionProperty
+
+from .utils import get_extract_path, is_psk
+from .cleanup_mesh import cleanup_mesh
+from .import_umodel_material import load_materials_on_selected_objects
 
 RIG_FILES = "D:/3D/Kena/Extracted/Extracted_Rigs/Game/Mochi/Characters/"
-
-def is_psk(filename):
-	return filename.endswith(".psk") or filename.endswith(".pskx")
 
 def get_object_name_list():
 	return [o.name for o in bpy.data.objects]
@@ -113,4 +117,91 @@ def combine_morphs(context, objects: List[Object]):
 
 	bpy.ops.outliner.orphans_purge(do_recursive=True)
 
-batch_import_psk(bpy.context, RIG_FILES)
+def import_kena_psk(context, filepath: str, do_clean_mesh=True):
+	print(filepath)
+	ob_list = get_object_name_list()
+	ob_name = os.path.basename(filepath).split(".")[0]
+	if ob_name in ob_list:
+		print("Already imported, skipping:", ob_name)
+		return
+
+	enable_print(False)
+	bpy.ops.import_scene.psk(filepath=filepath)
+	new_obs = get_new_objects(ob_list)
+	for o in new_obs:
+		o.name = o.name.replace(".mo", "").replace(".ao", "_Skeleton").replace("SK_", "")
+		o.data.name = o.name
+
+		bpy.ops.object.select_all(action='DESELECT')
+		context.view_layer.objects.active = o
+		o.select_set(True)
+		bpy.ops.object.shade_smooth()
+		cleanup_mesh(context, o
+			,remove_doubles = True
+			,quadrangulate = True
+			,weight_normals = True
+			,seams_from_islands = True
+		)
+		load_materials_on_selected_objects(context)
+
+	enable_print(True)
+	now = datetime.now().strftime("%H:%M:%S")
+	print(f"{now} Imported: " + str([o.name for o in new_obs]))
+
+class WM_OT_batch_import_psk(bpy.types.Operator, ImportHelper):
+	"""Load a batch of .psk files using the .psk importer addon, along with materials from .props.txt files"""
+	bl_idname = "wm.batch_import_psk"
+	bl_label = "Batch Import PSK"
+	bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
+
+	# Properties provided or used by ImportHelper mixin class.
+	filename_ext = ".pskx"
+	filter_glob: StringProperty(
+		default="*.pskx",
+		options={'HIDDEN'}
+	)
+	files: CollectionProperty(
+		name="File Path",
+		description="File path used for importing",
+		type=bpy.types.OperatorFileListElement
+	)
+	directory: StringProperty()
+
+	# Other properties
+	recursive: BoolProperty(
+		name = "Recursive",
+		default = False,
+		description = "Recursive import. Be careful, and have a console open"
+	)
+	do_clean_mesh: BoolProperty(
+		name = "Clean Up Mesh",
+		default = True,
+		description = "Meshes will have Remove Doubles, Merge By Distance, Weight Normals and Seams From Islands executed on them"
+	)
+
+	def execute(self, context):
+		paths = [os.path.join(self.directory, name.name)
+			for name in self.files]
+
+		if len(paths) == 1 and "." not in paths[0] and self.recursive:
+			paths = []
+			for subdir, dirs, files in os.walk(self.directory):
+				paths.extend([subdir+os.sep+filename for filename in files if is_psk(filename)])
+
+		for filepath in paths:
+			import_kena_psk(context, filepath, do_clean_mesh=self.do_clean_mesh)
+
+		return {'FINISHED'}
+
+def menu_func_import(self, context):
+	self.layout.operator(WM_OT_batch_import_psk.bl_idname, text="Batch .psk")
+
+registry = [
+	WM_OT_batch_import_psk
+]
+
+def register():
+	bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+
+def unregister():
+	bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
