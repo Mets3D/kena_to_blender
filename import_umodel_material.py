@@ -11,11 +11,16 @@ RES_PATH = os.path.join(RES_DIR, RES_FILE)
 EQUIVALENT_PARAMS = {
 	'BaseColor' : 'Diffuse'
 	,'Albedo' : 'Diffuse'
+	,'Tex_Color' : 'Diffuse'
+	,'TileDiffuse' : 'Diffuse'
 	,'Normals' : 'Normal'
+	,'TileNormal' : 'Normal'
+	,'Tex_Normal' : 'Normal'
 	,'Emissive' : 'Emission'
 	,'GlowMap' : 'Emission'
 	,'AO_R' : 'AO_R_M'
 	,'MREA' : 'AO_R_M'
+	,'Tex_Comp' : 'AO_R_M'
 	,'Comp_M_R_Ao' : 'M_R_AO'
 	,'Unique_Hair_Value' : 'Depth'
 }
@@ -34,10 +39,10 @@ SHADER_MAPPING = {
 }
 
 def ensure_node_group(ng_name):
-	"""Check if a nodegroup exists, and if not, append it from the addon's resource file."""
+	"""Check if a nodegroup exists, and if not, link it from the addon's resource file."""
 
 	if ng_name not in bpy.data.node_groups:
-		with bpy.data.libraries.load(RES_PATH) as (data_from, data_to):
+		with bpy.data.libraries.load(RES_PATH, link=True) as (data_from, data_to):
 			for ng in data_from.node_groups:
 				if ng == ng_name:
 					data_to.node_groups.append(ng)
@@ -67,7 +72,7 @@ def build_material_map(path_to_files: str) -> Dict[str, str]:
 
 	return mat_map
 
-def set_up_materials(obj: Object, mat_map: Dict[str, str]):
+def set_up_materials(context, obj: Object, mat_map: Dict[str, str]):
 	"""Set up all materials of the object."""
 
 	for ms in obj.material_slots:
@@ -85,7 +90,8 @@ def set_up_materials(obj: Object, mat_map: Dict[str, str]):
 def set_up_material(obj: Object, mat: Material, mat_info: Dict):
 	"""Set up a single material."""
 
-	tex_params, vector_params, scalar_params = parse_mat_params(mat_info)
+	# print("\n\n",mat.name)
+	tex_params, vector_params, scalar_params = parse_mat_params(mat.name, mat_info)
 	mat.use_nodes = True
 	nodes = mat.node_tree.nodes
 	links = mat.node_tree.links
@@ -113,6 +119,7 @@ def set_up_material(obj: Object, mat: Material, mat_info: Dict):
 	y_loc = 1000
 	for par_name, par_value in tex_params.items():
 		node = create_node_texture(mat, par_name, par_value, node_ng)
+		if not node: continue
 		param_nodes.append(node)
 		node.location = (-450, y_loc)
 		y_loc -= 320
@@ -142,7 +149,9 @@ def set_up_material(obj: Object, mat: Material, mat_info: Dict):
 			continue
 
 		if len(input_pin.links) > 0:
-			print("WARNING: NODE WAS ALREADY CONNECTED!")
+			# If something is already connected to this socket, don't overwrite it.
+			# Textures are processed first, and they should have priority.
+			continue
 
 		links.new(par_node.outputs[0], input_pin)
 
@@ -204,6 +213,8 @@ def create_node_texture(
 		,node_ng: Node
 	):
 	nodes = mat.node_tree.nodes
+	if not par_value:
+		return
 
 	node = nodes.new(type="ShaderNodeTexImage")
 	node.name = node.label = par_name
@@ -311,6 +322,37 @@ def do_master_params(mat_info):
 			value = scalar_param.get("Value")
 			processed_scal[name] = value
 
+	# Sometimes master materials have a ReferencedTextures block within their CachedExpressionData block
+	# without having any CollectedTextureParameters.
+	# In this case the type of each texture is also not indicated, leaving us to guess by filename...
+	cached_exp_data = mat_info.get('CachedExpressionData')
+	if cached_exp_data:
+		tex_list = cached_exp_data.get('ReferencedTextures')
+		if tex_list:
+			for tex_path in tex_list:
+				value = tex_path.split("'")[1].split(".")[0] + ".tga"
+
+				name = ""
+				# Guess the texture type name
+				if value.endswith("_D.tga"):
+					name = 'Diffuse'
+				elif value.endswith("_H_R_AO.tga"):
+					name = 'H_R_AO'
+				elif value.endswith("_M_R_AO.tga"):
+					name = 'M_R_AO'
+				elif value.endswith("_AO_R_M.tga"):
+					name = 'AO_R_M'
+				elif value.endswith("_N.tga"):
+					name = 'Normal'
+				elif value.endswith("_E.tga"):
+					name = 'Emission'
+
+				if name=="" or name in processed_tex:
+					name = 'Unknown'
+
+				if name not in processed_tex:
+					processed_tex[name] = value
+
 	return processed_tex, processed_vec, processed_scal
 	
 def do_instance_params(mat_info):
@@ -347,28 +389,32 @@ def do_instance_params(mat_info):
 
 	return processed_tex, processed_vec, processed_scal
 
-def parse_mat_params(mat_info: Dict) -> Tuple[Dict, Dict, Dict]:
+def parse_mat_params(mat_name: str, mat_info: Dict) -> Tuple[Dict, Dict, Dict]:
 	tex_params = {}
 	vector_params = {}
 	scalar_params = {}
 
 	if 'Parent' in mat_info:
-		parent_filepath = mat_info['Parent'].split("'")[1].split(".")[0]
-		parent_filepath = get_extract_path(bpy.context) + os.sep + parent_filepath + ".props.txt"
+		# Recursively load material info from parents first.
+		parent_rel_path = mat_info['Parent'].split("'")[1].split(".")[0]
+		parent_name = parent_rel_path.split("/")[-1]
+		parent_abs_path = get_extract_path(bpy.context) + os.sep + parent_rel_path + ".props.txt"
 
-		# Parse Master Material. 
-		# These contain the list of parameters and their default values, which Material Instances are able to overwrite,
-		# So we first load the master material's data into a dictionary, which can later be overwritten by the info in the MaterialInstance.
+		parent_mat_info = props_txt_to_dict(parent_abs_path)
+		tex_params, vector_params, scalar_params = parse_mat_params(parent_name, parent_mat_info)
 
-		master_mat_info = props_txt_to_dict(parent_filepath)
-		tex_params, vector_params, scalar_params = do_master_params(mat_info = master_mat_info)
-
-	# Material Instance parameters
-	mi_tex_params, mi_vec_params, mi_scal_params = do_instance_params(mat_info = mat_info)
-
-	tex_params.update(mi_tex_params)
-	vector_params.update(mi_vec_params)
-	scalar_params.update(mi_scal_params)
+	# Determine whether this material should be parsed as a MasterMaterial or MaterialInstance based on name prefix.
+	is_instance = mat_name.startswith("MI_")
+	if is_instance:
+		# Process material info as MaterialInstance
+		local_tex_params, local_vector_params, local_scalar_params = do_instance_params(mat_info = mat_info)
+	else:
+		# Process material info as MasterMaterial
+		local_tex_params, local_vector_params, local_scalar_params = do_master_params(mat_info = mat_info)
+	
+	tex_params.update(local_tex_params)
+	vector_params.update(local_vector_params)
+	scalar_params.update(local_scalar_params)
 
 	return tex_params, vector_params, scalar_params
 
@@ -381,7 +427,7 @@ def load_materials_on_selected_objects(context):
 		mat_map[key] = full_path
 
 	for o in context.selected_objects:
-		set_up_materials(o, mat_map)
+		set_up_materials(context, o, mat_map)
 
 class OBJECT_OT_SetUpMaterials(bpy.types.Operator):
 	"""Load UE4 materials on an object"""
