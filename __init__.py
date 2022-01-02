@@ -34,6 +34,7 @@ from . import props_txt_to_json
 from . import utils
 from . import batch_import_psk
 from . import cleanup_mesh
+from . import kena_generate_catalogs
 
 class uModelIOAddonPrefs(bpy.types.AddonPreferences):
 	# this must match the addon name, use '__package__'
@@ -58,6 +59,7 @@ modules = [
     ,utils
     ,cleanup_mesh
     ,batch_import_psk
+	,kena_generate_catalogs
 ]
 
 from bpy.utils import register_class, unregister_class

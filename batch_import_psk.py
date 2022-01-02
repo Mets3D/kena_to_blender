@@ -7,10 +7,10 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, BoolProperty, CollectionProperty
 
 from .utils import get_extract_path, is_psk
-from .cleanup_mesh import cleanup_mesh
+from .cleanup_mesh import cleanup_mesh, delete_mesh_with_bad_materials
 from .import_umodel_material import load_materials_on_selected_objects
 
-RIG_FILES = "D:/3D/Kena/Extracted/Extracted_Rigs/Game/Mochi/Characters/"
+BAD_MATS = ["WorldGridMaterial"]
 
 def get_object_name_list():
 	return [o.name for o in bpy.data.objects]
@@ -138,6 +138,13 @@ def import_kena_psk(context, filepath: str, do_clean_mesh=True) -> List[Object]:
 		bpy.ops.object.select_all(action='DESELECT')
 		context.view_layer.objects.active = o
 		o.select_set(True)
+		delete_mesh_with_bad_materials(context, o, BAD_MATS)
+
+		if len(o.data.vertices) == 0:
+			for o in new_obs:
+				bpy.data.objects.remove(o)
+			return
+
 		bpy.ops.object.shade_smooth()
 		cleanup_mesh(context, o
 			,remove_doubles = True
