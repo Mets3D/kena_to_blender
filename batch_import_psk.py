@@ -117,20 +117,23 @@ def combine_morphs(context, objects: List[Object]):
 
 	bpy.ops.outliner.orphans_purge(do_recursive=True)
 
-def import_kena_psk(context, filepath: str, do_clean_mesh=True):
-	print(filepath)
+def import_kena_psk(context, filepath: str, do_clean_mesh=True) -> List[Object]:
 	ob_list = get_object_name_list()
 	ob_name = os.path.basename(filepath).split(".")[0]
 	if ob_name in ob_list:
 		print("Already imported, skipping:", ob_name)
-		return
+		return []
 
+	root_path = get_extract_path(context)
 	enable_print(False)
 	bpy.ops.import_scene.psk(filepath=filepath)
 	new_obs = get_new_objects(ob_list)
 	for o in new_obs:
 		o.name = o.name.replace(".mo", "").replace(".ao", "_Skeleton").replace("SK_", "")
 		o.data.name = o.name
+
+		if o.type != 'MESH':
+			continue
 
 		bpy.ops.object.select_all(action='DESELECT')
 		context.view_layer.objects.active = o
@@ -146,7 +149,8 @@ def import_kena_psk(context, filepath: str, do_clean_mesh=True):
 
 	enable_print(True)
 	now = datetime.now().strftime("%H:%M:%S")
-	print(f"{now} Imported: " + str([o.name for o in new_obs]))
+	print(f"{now} Imported: ", filepath.replace(root_path, ""))
+	return new_obs
 
 class WM_OT_batch_import_psk(bpy.types.Operator, ImportHelper):
 	"""Load a batch of .psk files using the .psk importer addon, along with materials from .props.txt files"""
