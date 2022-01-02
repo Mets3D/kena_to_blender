@@ -126,6 +126,8 @@ def import_up_to_filesize(context, extract_path, cat_defs, name_chains=[]):
 				continue
 			filepath = os.path.join(subdir, filename)
 			objs = import_kena_psk(context, filepath)
+			if not objs:
+				continue
 			file_count += 1
 			path_from_uncook = filepath.replace(extract_path, "")
 			mem_bytes += os.path.getsize(filepath)
@@ -242,11 +244,14 @@ class OBJECT_OT_reload_kena_asset(Operator):
 		bpy.data.objects.remove(ob)
 
 		full_path = os.path.join(get_extract_path(context), self.filepath)
-		import_kena_psk(context, full_path, do_clean_mesh=True)
-
-		new_ob = bpy.data.objects.get(self.ob_name)
-		set_up_asset(new_ob, coll, cat_id, description)
-		context.view_layer.objects.active = new_ob
+		new_obs = import_kena_psk(context, full_path, do_clean_mesh=True)
+		if not new_obs:
+			return {'FINISHED'}
+		for o in new_obs:
+			if not o.type=='MESH':
+				continue
+			set_up_asset(o, coll, cat_id, description)
+			context.view_layer.objects.active = o
 
 		return {'FINISHED'}
 

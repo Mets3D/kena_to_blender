@@ -13,9 +13,7 @@ def props_txt_to_dict(filepath: str) -> Dict:
 	parsed_dict = parse(data)
 
 	dicts_to_lists(parsed_dict)
-	if 'CachedExpressionData' in parsed_dict:
-		del parsed_dict['CachedExpressionData']
-	
+
 	return parsed_dict
 
 def props_txt_to_json(filepath: str) -> str:
@@ -130,8 +128,14 @@ def dicts_to_lists(data: Dict) -> Dict:
 		if match:
 			new_key = key.split("[")[0]
 			if value:
-				new_value = list(value.values())
+				if type(value)==dict:
+					new_value = list(value.values())
+				else:
+					new_value = value
 			else:
 				new_value = None
 			data[new_key] = new_value
+			value = new_value
 			del data[key]
+		if type(value) == dict:
+			dicts_to_lists(value)
