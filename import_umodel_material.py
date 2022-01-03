@@ -11,17 +11,30 @@ RES_PATH = os.path.join(RES_DIR, RES_FILE)
 EQUIVALENT_PARAMS = {
 	'BaseColor' : 'Diffuse'
 	,'Albedo' : 'Diffuse'
-	,'Tex_Color' : 'Diffuse'
-	,'TileDiffuse' : 'Diffuse'
 	,'Normals' : 'Normal'
+
 	,'TileNormal' : 'Normal'
+	,'TileDiffuse' : 'Diffuse'
+
+	,'Tex_Diffuse' : 'Diffuse'
+	,'Tex_Color' : 'Diffuse'
 	,'Tex_Normal' : 'Normal'
+	,'Tex_Emissive' : 'Emission'
+
+	,'Base_Diffuse_Tex' : 'Diffuse'
+	,'Base_Color_Tex' : 'Diffuse'
+	,'Base_Normal_Tex' : 'Normal'
+	,'Base_Comp_Tex' : 'AO_R_M'
+
 	,'Emissive' : 'Emission'
 	,'GlowMap' : 'Emission'
+	,'Glow' : 'Emission'
+
 	,'AO_R' : 'AO_R_M'
 	,'MREA' : 'AO_R_M'
-	,'Tex_Comp' : 'AO_R_M'
+	# ,'Tex_Comp' : 'AO_R_M'
 	,'Comp_M_R_Ao' : 'M_R_AO'
+	,'Tex_Comp_MR' : 'M_R_AO'
 	,'Unique_Hair_Value' : 'Depth'
 }
 
@@ -30,6 +43,14 @@ TEX_BLACKLIST = [
 	,'kena_props_sprint_EMISSIVE'
 	,'kena_cloth_EMISSIVE'
 	,'Noise_cloudsmed'
+	,'TEX_MW_Temp_msk'
+	,'T_BarkTest_03_D'
+	,'TEX_MW_Temp_col'
+	,'TEX_MW_Temp_msk'
+	,'T_Grid_Edge_001'
+	,'blank_normals'
+	,'T_Grid_CenterLine_001'
+	,'T_Black'
 ]
 
 SHADER_MAPPING = {
@@ -154,6 +175,9 @@ def set_up_material(obj: Object, mat: Material, mat_info: Dict):
 			continue
 
 		links.new(par_node.outputs[0], input_pin)
+		
+		if par_node.type == 'TEX_IMAGE' and par_node.image and par_node.image.name.endswith("_D_A"):
+			links.new(par_node.outputs[1], node_ng.inputs.get("Alpha"))
 
 		if par_node.type == 'TEX_IMAGE' and input_pin.name not in ['Diffuse', 'Alpha', 'IrisColor']:
 			par_node.image.colorspace_settings.name = 'Non-Color'
@@ -161,6 +185,11 @@ def set_up_material(obj: Object, mat: Material, mat_info: Dict):
 		if input_pin.name == 'Diffuse':
 			nodes.active = par_node
 	
+	if nodes.active and nodes.active.type == 'TEX_IMAGE' \
+			and len(nodes.active.outputs[0].links) > 0 \
+			and len(node_ng.inputs.get("Alpha").links) == 0:
+		links.new(nodes.active.outputs[1], node_ng.inputs.get("Alpha"))
+
 	if shader == 'Kena_Hair':
 		mat.blend_method = 'HASHED'
 	else:
@@ -290,10 +319,10 @@ def localize_image(img: Image):
 	shutil.copyfile(img.filepath, new_abspath)
 	img.filepath = new_rel_path
 
-def do_master_params(mat_info):
-	tex_pars = mat_info.get('CollectedTextureParameters')
-	vec_pars = mat_info.get('CollectedVectorParameters')
-	scal_pars = mat_info.get('CollectedScalarParameters')
+def mat_info_to_params(mat_info):
+	tex_pars = mat_info.get('TextureParameterValues') or mat_info.get('CollectedTextureParameters')
+	vec_pars = mat_info.get('VectorParameterValues') or mat_info.get('CollectedVectorParameters')
+	scal_pars = mat_info.get('ScalarParameterValues') or mat_info.get('CollectedScalarParameters')
 
 	processed_tex = {}
 	processed_vec = {}
@@ -301,8 +330,8 @@ def do_master_params(mat_info):
 
 	if tex_pars:
 		for tex_param in tex_pars:
-			name = tex_param.get("Name")
-			value = tex_param.get("Texture")
+			name = tex_param.get("Name") or tex_param.get("ParameterInfo").get("Name")
+			value = tex_param.get("Texture") or tex_param.get("ParameterValue")
 			if not value:
 				processed_tex[name] = None
 				continue
@@ -311,15 +340,17 @@ def do_master_params(mat_info):
 
 	if vec_pars:
 		for vec_param in vec_pars:
-			name = vec_param.get("Name")
-			value = vec_param.get("Value")
+			name = vec_param.get("Name") or vec_param.get("ParameterInfo").get("Name")
+			value = vec_param.get("Value") or vec_param.get("ParameterValue")
 			value = [value['R'], value['G'], value['B'], value['A']]
 			processed_vec[name] = value
 
 	if scal_pars:
 		for scalar_param in scal_pars:
-			name = scalar_param.get("Name")
-			value = scalar_param.get("Value")
+			name = scalar_param.get("Name") or scalar_param.get("ParameterInfo").get("Name")
+			value = scalar_param.get("Value") or scalar_param.get("ParameterValue")
+			if not value:
+				continue
 			processed_scal[name] = value
 
 	# Sometimes master materials have a ReferencedTextures block within their CachedExpressionData block
@@ -334,7 +365,7 @@ def do_master_params(mat_info):
 
 				name = ""
 				# Guess the texture type name
-				if value.endswith("_D.tga"):
+				if value.endswith("_D.tga") or value.endswith("_D_A.tga") or 'diffuse' in value.lower():
 					name = 'Diffuse'
 				elif value.endswith("_H_R_AO.tga"):
 					name = 'H_R_AO'
@@ -354,40 +385,6 @@ def do_master_params(mat_info):
 					processed_tex[name] = value
 
 	return processed_tex, processed_vec, processed_scal
-	
-def do_instance_params(mat_info):
-	tex_pars = mat_info.get('TextureParameterValues')
-	vec_pars = mat_info.get('VectorParameterValues')
-	scal_pars = mat_info.get('ScalarParameterValues')
-
-	processed_tex = {}
-	processed_vec = {}
-	processed_scal = {}
-
-	if tex_pars:
-		for tex_param in tex_pars:
-			name = tex_param.get("ParameterInfo").get("Name")
-			value = tex_param.get("ParameterValue")
-			if not value:
-				processed_tex[name] = None
-				continue
-			value = value.split("'")[1].split(".")[0] + ".tga"
-			processed_tex[name] = value
-
-	if vec_pars:
-		for vec_param in vec_pars:
-			name = vec_param.get("ParameterInfo").get("Name")
-			value = vec_param.get("ParameterValue")
-			value = [value['R'], value['G'], value['B'], value['A']]
-			processed_vec[name] = value
-
-	if scal_pars:
-		for scalar_param in scal_pars:
-			name = scalar_param.get("ParameterInfo").get("Name")
-			value = scalar_param.get("ParameterValue")
-			processed_scal[name] = value
-
-	return processed_tex, processed_vec, processed_scal
 
 def parse_mat_params(mat_name: str, mat_info: Dict) -> Tuple[Dict, Dict, Dict]:
 	tex_params = {}
@@ -403,15 +400,22 @@ def parse_mat_params(mat_name: str, mat_info: Dict) -> Tuple[Dict, Dict, Dict]:
 		parent_mat_info = props_txt_to_dict(parent_abs_path)
 		tex_params, vector_params, scalar_params = parse_mat_params(parent_name, parent_mat_info)
 
+	if 'Materials' in mat_info:
+		for mat in mat_info['Materails']:
+			mat_rel_path = mat.split("'")[1].split(".")[0]
+			parent_name = mat_rel_path.split("/")[-1]
+			mat_abs_path = get_extract_path(bpy.context) + os.sep + parent_rel_path + ".props.txt"
+
+			more_mat_info = props_txt_to_dict(mat_abs_path)
+			more_tex_params, more_vector_params, more_scalar_params = parse_mat_params(parent_name, more_mat_info)
+
+			tex_params.update(more_tex_params)
+			vector_params.update(more_vector_params)
+			scalar_params.update(more_scalar_params)
+
 	# Determine whether this material should be parsed as a MasterMaterial or MaterialInstance based on name prefix.
-	is_instance = mat_name.startswith("MI_")
-	if is_instance:
-		# Process material info as MaterialInstance
-		local_tex_params, local_vector_params, local_scalar_params = do_instance_params(mat_info = mat_info)
-	else:
-		# Process material info as MasterMaterial
-		local_tex_params, local_vector_params, local_scalar_params = do_master_params(mat_info = mat_info)
-	
+	local_tex_params, local_vector_params, local_scalar_params = mat_info_to_params(mat_info = mat_info)
+
 	tex_params.update(local_tex_params)
 	vector_params.update(local_vector_params)
 	scalar_params.update(local_scalar_params)

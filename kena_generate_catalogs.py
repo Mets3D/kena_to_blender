@@ -94,7 +94,7 @@ def import_folders(context, name_chains: List[List[str]]=[]):
 	cat_defs = read_catalogs()
 	extract_path = get_extract_path(context)
 
-	finished = import_up_to_filesize(context, extract_path, cat_defs, name_chains)
+	import_up_to_filesize(context, extract_path, cat_defs, name_chains)
 	bpy.ops.wm.save_mainfile()
 	print("Saved Blend file. Size: " + str(os.path.getsize(bpy.data.filepath)))
 
@@ -134,7 +134,7 @@ def import_up_to_filesize(context, extract_path, cat_defs, name_chains=[]):
 
 			bpy.ops.object.select_all(action='DESELECT')
 			for o in objs:
-				set_up_asset(o, coll, cat_def.split(":")[0], path_from_uncook)
+				set_up_asset(context, o, coll, cat_def.split(":")[0], path_from_uncook)
 				o.hide_viewport=True
 
 def is_good_name_chain(name_chain: List[str], good_chains: List[List[str]]) -> bool:
@@ -182,32 +182,38 @@ def get_name_hierarchy_of_cat(catalog_def: str) -> List[str]:
 	spl = catalog_def.split(":")
 	return spl[1].split("/")
 
-def set_up_asset(o: Object, coll: Collection, cat_id: str, description: str):
+def set_up_asset(context, o: Object, coll: Collection, cat_id: str, description: str):
+	if o.type != 'MESH':
+		return
+
 	for c in o.users_collection:
 		c.objects.unlink(o)
+	context.scene.collection.objects.link(o)
+	o.select_set(True)
+	context.view_layer.objects.active = o
+	asset_data = generate_asset(o)
+	asset_data.catalog_id = cat_id
+	if len(o.modifiers) > 0:
+		asset_data.tags.new('Animated')
+	else:
+		asset_data.tags.new('Static')
+	asset_data.description = description
+	asset_data.author = "Ember Labs"
+	for ms in o.material_slots:
+		if not ms.material:
+			continue
+		m = ms.material
+		asset_data.tags.new(m.name)
+		if not m.node_tree:
+			continue
+		for n in reversed(m.node_tree.nodes):
+			if n.type == 'GROUP':
+				if asset_data.tags.find(n.label) == -1:
+					asset_data.tags.new(n.label)
+				break
 	coll.objects.link(o)
-	if o.type == 'MESH':
-		o.select_set(True)
-		asset_data = generate_asset(o)
-		asset_data.catalog_id = cat_id
-		if len(o.modifiers) > 0:
-			asset_data.tags.new('Animated')
-		else:
-			asset_data.tags.new('Static')
-		asset_data.description = description
-		asset_data.author = "Ember Labs"
-		for ms in o.material_slots:
-			if not ms.material:
-				continue
-			m = ms.material
-			asset_data.tags.new(m.name)
-			if not m.node_tree:
-				continue
-			for n in reversed(m.node_tree.nodes):
-				if n.type == 'GROUP':
-					if asset_data.tags.find(n.label) == -1:
-						asset_data.tags.new(n.label)
-					break
+	# if coll != context.scene.collection:
+	# 	context.scene.collection.objects.unlink(o)
 
 def generate_asset(o):
 	if o.asset_data:
@@ -228,6 +234,7 @@ class OBJECT_OT_reload_kena_asset(Operator):
 	def execute(self, context):
 		# Find and delete the object
 		if context.object:
+			context.object.hide_viewport=False
 			bpy.ops.object.mode_set(mode='OBJECT')
 		bpy.ops.object.select_all(action='DESELECT')
 
@@ -250,7 +257,7 @@ class OBJECT_OT_reload_kena_asset(Operator):
 		for o in new_obs:
 			if not o.type=='MESH':
 				continue
-			set_up_asset(o, coll, cat_id, description)
+			set_up_asset(context, o, coll, cat_id, description)
 			context.view_layer.objects.active = o
 
 		return {'FINISHED'}

@@ -43,6 +43,11 @@ Workflow:
     - A quick python script to scan through the extracted .uassets and delete every folder that has "Animation" in the name. This is because umodel_kena.exe crashes when trying to export animations.
     - Now extract everything from those .uasset files! (With "Don't overwrite existing" enabled)
 
+    - Generate collections with kena_generate_collections.py
+    - Import stuff with import_folders() from the same file
+
+    - Clean shit up manually based on Asset Browser previews
+        Inorganic DONE! Everything else... TODO.
 
 NOTES
     Assets exclusive to cutscenes NEVER SHIPPED WITH THE GAME, eg. the awesome creature from the game's final cutscene.

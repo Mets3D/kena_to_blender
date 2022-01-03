@@ -10,7 +10,16 @@ from .utils import get_extract_path, is_psk
 from .cleanup_mesh import cleanup_mesh, delete_mesh_with_bad_materials
 from .import_umodel_material import load_materials_on_selected_objects
 
-BAD_MATS = ["WorldGridMaterial"]
+BAD_MATS = [
+	"WorldGridMaterial"
+	,"MI_Collision_Blue"
+	,'material_0'
+	,'material_1'
+	,'material_2'
+	,'material_3'
+	,'material_4'
+	,'lambert1'
+]
 
 def get_object_name_list():
 	return [o.name for o in bpy.data.objects]
