@@ -1,7 +1,3 @@
-D:\3D\Kena\Extracted\Extracted_GLTF_Animations\Game\Mochi\Characters\Kena
-
-D:\3D\Kena\Extracted\Extracted_uasset_Animations\Game\Mochi\Characters\Kena
-
 Gildor thread: https://www.gildor.org/smf/index.php/topic,7922.0.html
 
 Workflow:
@@ -43,19 +39,11 @@ Workflow:
     - A quick python script to scan through the extracted .uassets and delete every folder that has "Animation" in the name. This is because umodel_kena.exe crashes when trying to export animations.
     - Now extract everything from those .uasset files! (With "Don't overwrite existing" enabled)
 
-    - Generate collections with kena_generate_collections.py
+    - Generate collections with kena_generate_collections.py in the kena_to_blender repo.
     - Import stuff with import_folders() from the same file
 
     - Clean shit up manually based on Asset Browser previews
-        Inorganic DONE! Everything else... TODO.
 
 NOTES
     Assets exclusive to cutscenes NEVER SHIPPED WITH THE GAME, eg. the awesome creature from the game's final cutscene.
 
-- Export everything with umodel_kena.exe (for correct skeleton positions)
-    idk if static meshes will work, if not, those will need another pass with regular umodel_64.exe.
-
-        Not sure how this could be automated.
-
-- Import to Blender
-- Some script to auto set-up materials based on the umodel-exported Material data.
